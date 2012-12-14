@@ -1,0 +1,27 @@
+{
+  "name": "batcher",
+  "version": "0.0.0",
+  "description": "A stream that batches data sent to it",
+  "author": "Nebojsa Sabovic <nsabovic@gmail.com>",
+  "keywords": [
+    "batch",
+    "stream"
+  ],
+  "engines": {
+    "node": ">=0.6.0",
+    "npm": ">=1.1.9"
+  },
+  "main": "lib/batcher.js",
+  "scripts": {
+    "test": "rm -rf lib-cov && jshint lib/*.js test/*.js && mocha -R spec",
+    "coverage": "rm -rf lib-cov && jscoverage lib lib-cov && mocha -R html-cov > cov.html"
+  },
+  "devDependencies": {
+    "mocha": "~1.0",
+    "sinon": "~1.3",
+    "jshint": ">= 0.7.0"
+  },
+  "dependencies": {
+    "twoqueue": ">0.0.1"
+  }
+}

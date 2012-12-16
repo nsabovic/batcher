@@ -1,6 +1,6 @@
 {
   "name": "batcher",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "A stream that batches data sent to it",
   "author": "Nebojsa Sabovic <nsabovic@gmail.com>",
   "keywords": [

@@ -37,60 +37,81 @@ describe('Batcher', function() {
   });
 
   describe('constructor', function() {
-    it('respects options.encoder', function() {
+    it('respects options.encoder', function(callback) {
       batcher.resume();
       batcher.write(1);
       batcher.write(2);
       batcher.write(3);
-      assertCalledWithExactly(encoder, [1, 2, 3]);
-      assertCalledWithExactly(ondata, [1, 2, 3]);
-      encoder.reset();
-      ondata.reset();
-      batcher.write(4);
-      batcher.write(5);
-      batcher.write(6);
-      assertCalledWithExactly(encoder, [4, 5, 6]);
-      assertCalledWithExactly(ondata, [4, 5, 6]);
-      assertNotCalled(onerror);
+      process.nextTick(function() {
+        assertCalledWithExactly(encoder, [1, 2, 3]);
+        assertCalledWithExactly(ondata, [1, 2, 3]);
+        encoder.reset();
+        ondata.reset();
+        batcher.write(4);
+        batcher.write(5);
+        batcher.write(6);
+        process.nextTick(function() {
+          assertCalledWithExactly(encoder, [4, 5, 6]);
+          assertCalledWithExactly(ondata, [4, 5, 6]);
+          assertNotCalled(onerror);
+          callback();
+        });
+      });
     });
 
-    it('respects options.batchSize', function() {
+    it('respects options.batchSize', function(callback) {
       batcher.resume();
 
       assertNotCalled(ondata);
       assertNotCalled(encoder);
       batcher.write(1);
       batcher.write(2);
-      assertNotCalled(ondata);
-      assertNotCalled(encoder);
-      batcher.write(3);
-      assertCalledOnce(ondata);
-      assertCalledOnce(encoder);
+      process.nextTick(function() {
+        assertNotCalled(ondata);
+        assertNotCalled(encoder);
+        batcher.write(3);
+        process.nextTick(function() {
+          assertCalledOnce(ondata);
+          assertCalledOnce(encoder);
 
-      encoder.reset();
-      ondata.reset();
-      batcher.write(4);
-      batcher.write(5);
-      assertNotCalled(ondata);
-      assertNotCalled(encoder);
-      batcher.write(6);
-      assertCalledOnce(ondata);
-      assertCalledOnce(encoder);
-      assertNotCalled(onerror);
+          encoder.reset();
+          ondata.reset();
+          batcher.write(4);
+          batcher.write(5);
+          process.nextTick(function() {
+            assertNotCalled(ondata);
+            assertNotCalled(encoder);
+            batcher.write(6);
+            process.nextTick(function() {
+              assertCalledOnce(ondata);
+              assertCalledOnce(encoder);
+              assertNotCalled(onerror);
+              callback();
+            });
+          });
+        });
+      });
     });
 
-    it('respects options.batchTimeMs', function() {
+    it('respects options.batchTimeMs', function(callback) {
       batcher.resume();
       batcher.write(1);
       batcher.write(2);
       clock.tick(990);
-      assertNotCalled(ondata);
-      assertNotCalled(encoder);
-      clock.tick(20);
-      assertCalledOnce(ondata);
-      assertCalledOnce(encoder);
-      clock.tick(-1010);
-      assertNotCalled(onerror);
+
+      process.nextTick(function() {
+        assertNotCalled(ondata);
+        assertNotCalled(encoder);
+        clock.tick(20);
+
+        process.nextTick(function() {
+          assertCalledOnce(ondata);
+          assertCalledOnce(encoder);
+          assertNotCalled(onerror);
+          clock.tick(-1010);
+          callback();
+        });
+      });
     });
 
     it('respects options.batchOverflow', function() {
@@ -105,83 +126,104 @@ describe('Batcher', function() {
   });
 
   describe('#pause/#resume', function() {
-    it('begins paused', function() {
+    it('begins paused', function(callback) {
       batcher.write(1);
       batcher.write(2);
       batcher.write(3);
       batcher.write(4);
-      assertNotCalled(ondata);
-      assertNotCalled(encoder);
-      assertNotCalled(onerror);
+      process.nextTick(function() {
+        assertNotCalled(ondata);
+        assertNotCalled(encoder);
+        assertNotCalled(onerror);
+        callback();
+      });
     });
 
-    it('sends when resumed', function() {
+    it('sends when resumed', function(callback) {
       batcher.write(1);
       batcher.write(2);
       batcher.write(3);
       batcher.write(4);
       batcher.resume();
-      assertCalledOnce(ondata);
-      assertCalledOnce(encoder);
-      assertNotCalled(onerror);
+      process.nextTick(function() {
+        assertCalledOnce(ondata);
+        assertCalledOnce(encoder);
+        assertNotCalled(onerror);
+        callback();
+      });
     });
 
-    it('sends no more than batchSize entries', function() {
+    it('sends no more than batchSize entries', function(callback) {
       batcher.write(1);
       batcher.write(2);
       batcher.write(3);
       batcher.write(4);
       batcher.resume();
       batcher.pause();
-      encoder.reset();
-      ondata.reset();
       batcher.write(5);
       batcher.write(6);
       batcher.write(7);
       batcher.write(8);
       batcher.write(9);
-      assertNotCalled(ondata);
-      assertNotCalled(encoder);
-      batcher.resume();
-      assertCalledTwice(ondata);
-      assert(ondata.firstCall.calledWithExactly([4, 5, 6]));
-      assert(ondata.secondCall.calledWithExactly([7, 8, 9]));
-      assertCalledTwice(encoder);
-      assert(encoder.firstCall.calledWithExactly([4, 5, 6]));
-      assert(encoder.secondCall.calledWithExactly([7, 8, 9]));
-      assertNotCalled(onerror);
+      process.nextTick(function() {
+        assertNotCalled(ondata);
+        assertNotCalled(encoder);
+        batcher.resume();
+        process.nextTick(function() {
+          assertCalledThrice(ondata);
+          assert(ondata.firstCall.calledWithExactly([1, 2, 3]));
+          assert(ondata.secondCall.calledWithExactly([4, 5, 6]));
+          assert(ondata.thirdCall.calledWithExactly([7, 8, 9]));
+          assertCalledThrice(encoder);
+          assert(encoder.firstCall.calledWithExactly([1, 2, 3]));
+          assert(encoder.secondCall.calledWithExactly([4, 5, 6]));
+          assert(encoder.thirdCall.calledWithExactly([7, 8, 9]));
+          assertNotCalled(onerror);
+          callback();
+        });
+      });
     });
   });
 
   describe('#flush', function() {
-    it('causes send', function() {
-      var callback = sinon.spy();
+    it('causes send', function(callback) {
+      var flushCallback = sinon.spy();
 
       batcher.resume();
       batcher.write(1);
       batcher.write(2);
-      assertNotCalled(ondata);
-      assertNotCalled(encoder);
-      assertNotCalled(callback);
-      batcher.flush(callback);
-      assertCalledOnce(callback);
-      assertCallOrder(encoder, ondata, callback);
-      assertNotCalled(onerror);
+      process.nextTick(function() {
+        assertNotCalled(ondata);
+        assertNotCalled(encoder);
+        assertNotCalled(flushCallback);
+        batcher.flush(flushCallback);
+        process.nextTick(function() {
+          assertCalledOnce(flushCallback);
+          assertCallOrder(encoder, ondata, flushCallback);
+          assertNotCalled(onerror);
+          callback();
+        });
+      });
     });
 
-    it('waits for resume to send', function() {
-      var callback = sinon.spy();
+    it('waits for resume to send', function(callback) {
+      var flushCallback = sinon.spy();
 
       batcher.write(1);
       batcher.write(2);
-      batcher.flush(callback);
-      assertNotCalled(ondata);
-      assertNotCalled(encoder);
-      assertNotCalled(callback);
-      batcher.resume();
-      assertCalledOnce(callback);
-      assertCallOrder(encoder, ondata, callback);
-      assertNotCalled(onerror);
+      batcher.flush(flushCallback);
+      process.nextTick(function() {
+        assertNotCalled(ondata);
+        assertNotCalled(encoder);
+        assertNotCalled(flushCallback);
+        batcher.resume();
+        process.nextTick(function() {
+          assertCalledOnce(flushCallback);
+          assertCallOrder(encoder, ondata, flushCallback);
+          assertNotCalled(onerror);
+          callback();
+        });
+      });
     });
 
     it('calls the callback asynchronously', function(done) {
@@ -221,18 +263,25 @@ describe('Batcher', function() {
   });
 
   describe('#setBatchSize', function() {
-    it('takes effect right away', function() {
+    it('takes effect right away', function(callback) {
       batcher.resume();
-      assertNotCalled(ondata);
-      assertNotCalled(encoder);
-      batcher.write(1);
-      batcher.write(2);
-      assertNotCalled(ondata);
-      assertNotCalled(encoder);
-      batcher.setBatchSize(2);
-      assertCalledOnce(ondata);
-      assertCalledOnce(encoder);
-      assertNotCalled(onerror);
+      process.nextTick(function() {
+        assertNotCalled(ondata);
+        assertNotCalled(encoder);
+        batcher.write(1);
+        batcher.write(2);
+        process.nextTick(function() {
+          assertNotCalled(ondata);
+          assertNotCalled(encoder);
+          batcher.setBatchSize(2);
+          process.nextTick(function() {
+            assertCalledOnce(ondata);
+            assertCalledOnce(encoder);
+            assertNotCalled(onerror);
+            callback();
+          });
+        });
+      });
     });
   });
 });

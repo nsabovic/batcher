@@ -35,3 +35,30 @@ You can also manually flush the batch:
 
 Batchers support `write()`, `pause()`, `resume()`, `flush()`, `end()` and
 `destroy()`.
+
+`pause()/resume()` is useful when you need to send with retries, but want to
+avoid the thundering herd when the server comes back online.
+
+    var b = new Batcher({
+      batchSize: 1,
+      maxBatchSize: 100,
+      encoder: function(items) {
+        b.pause();
+
+        function send() {
+          request({
+            url: some_url,
+            json: items,
+          }, function(err) {
+            if (err) return setTimeout(send, 1000);
+            b.resume();
+          });
+        }
+
+        send();
+      }
+    });
+
+`batchSize` of 1 means send them as they come. `maxBatchSize` of 100 means if
+there are more available, send as many as 100. `setTimeout` is used to retry
+sending every second.

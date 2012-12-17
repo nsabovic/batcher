@@ -25,7 +25,8 @@ describe('Batcher', function() {
     batcher = Batcher({
       encoder: encoder,
       batchSize: 3,
-      batchTimeMs: 1000,
+      maxBatchSize: 4,
+      batchTimeMs: 100,
       batchOverflow: 10
     });
     batcher.on('data', ondata);
@@ -62,14 +63,16 @@ describe('Batcher', function() {
     it('respects options.batchSize', function(callback) {
       batcher.resume();
 
-      assertNotCalled(ondata);
-      assertNotCalled(encoder);
       batcher.write(1);
       batcher.write(2);
+      assertNotCalled(ondata);
+      assertNotCalled(encoder);
+
       process.nextTick(function() {
+        batcher.write(3);
         assertNotCalled(ondata);
         assertNotCalled(encoder);
-        batcher.write(3);
+
         process.nextTick(function() {
           assertCalledOnce(ondata);
           assertCalledOnce(encoder);
@@ -78,10 +81,12 @@ describe('Batcher', function() {
           ondata.reset();
           batcher.write(4);
           batcher.write(5);
+
           process.nextTick(function() {
+            batcher.write(6);
             assertNotCalled(ondata);
             assertNotCalled(encoder);
-            batcher.write(6);
+
             process.nextTick(function() {
               assertCalledOnce(ondata);
               assertCalledOnce(encoder);
@@ -97,31 +102,31 @@ describe('Batcher', function() {
       batcher.resume();
       batcher.write(1);
       batcher.write(2);
-      clock.tick(990);
+      clock.tick(90);
 
       process.nextTick(function() {
         assertNotCalled(ondata);
         assertNotCalled(encoder);
         clock.tick(20);
-
-        process.nextTick(function() {
-          assertCalledOnce(ondata);
-          assertCalledOnce(encoder);
-          assertNotCalled(onerror);
-          clock.tick(-1010);
-          callback();
-        });
+        assertCalledOnce(ondata);
+        assertCalledOnce(encoder);
+        assertNotCalled(onerror);
+        clock.tick(-110);
+        callback();
       });
     });
 
-    it('respects options.batchOverflow', function() {
+    it('respects options.batchOverflow', function(callback) {
       for (var i = 1; i <= 10; ++i) {
         batcher.write(i);
       }
-      assertNotCalled(onerror);
       batcher.write(11);
-      assertCalledOnce(onerror);
-      assert(onerror.err instanceof Error);
+      assertNotCalled(onerror);
+      process.nextTick(function() {
+        assertCalledOnce(onerror);
+        assert(onerror.err instanceof Error);
+        callback();
+      });
     });
   });
 
@@ -145,6 +150,8 @@ describe('Batcher', function() {
       batcher.write(3);
       batcher.write(4);
       batcher.resume();
+      assertNotCalled(ondata);
+      assertNotCalled(encoder);
       process.nextTick(function() {
         assertCalledOnce(ondata);
         assertCalledOnce(encoder);
@@ -153,7 +160,7 @@ describe('Batcher', function() {
       });
     });
 
-    it('sends no more than batchSize entries', function(callback) {
+    it('sends no more than maxBatchSize entries', function(callback) {
       batcher.write(1);
       batcher.write(2);
       batcher.write(3);
@@ -164,20 +171,17 @@ describe('Batcher', function() {
       batcher.write(6);
       batcher.write(7);
       batcher.write(8);
-      batcher.write(9);
       process.nextTick(function() {
+        batcher.resume();
         assertNotCalled(ondata);
         assertNotCalled(encoder);
-        batcher.resume();
         process.nextTick(function() {
-          assertCalledThrice(ondata);
-          assert(ondata.firstCall.calledWithExactly([1, 2, 3]));
-          assert(ondata.secondCall.calledWithExactly([4, 5, 6]));
-          assert(ondata.thirdCall.calledWithExactly([7, 8, 9]));
-          assertCalledThrice(encoder);
-          assert(encoder.firstCall.calledWithExactly([1, 2, 3]));
-          assert(encoder.secondCall.calledWithExactly([4, 5, 6]));
-          assert(encoder.thirdCall.calledWithExactly([7, 8, 9]));
+          assertCalledTwice(ondata);
+          assert(ondata.firstCall.calledWithExactly([1, 2, 3, 4]));
+          assert(ondata.secondCall.calledWithExactly([5, 6, 7, 8]));
+          assertCalledTwice(encoder);
+          assert(encoder.firstCall.calledWithExactly([1, 2, 3, 4]));
+          assert(encoder.secondCall.calledWithExactly([5, 6, 7, 8]));
           assertNotCalled(onerror);
           callback();
         });
@@ -193,10 +197,10 @@ describe('Batcher', function() {
       batcher.write(1);
       batcher.write(2);
       process.nextTick(function() {
+        batcher.flush(flushCallback);
         assertNotCalled(ondata);
         assertNotCalled(encoder);
         assertNotCalled(flushCallback);
-        batcher.flush(flushCallback);
         process.nextTick(function() {
           assertCalledOnce(flushCallback);
           assertCallOrder(encoder, ondata, flushCallback);
@@ -241,24 +245,28 @@ describe('Batcher', function() {
   });
 
   describe('#end/destroy', function() {
-    it('end() causes future writes to fail', function() {
+    it('end() causes future writes to fail', function(callback) {
       batcher.resume();
       batcher.write(1);
       assertNotCalled(onerror);
       batcher.end();
       batcher.write(2);
-      assertCalledOnce(onerror);
-      assert(onerror.err instanceof Error);
+      assertNotCalled(onerror);
+      process.nextTick(function() {
+        assertCalledOnce(onerror);
+        assert(onerror.err instanceof Error);
+        callback();
+      });
     });
     it('destroy() stops future events', function() {
       batcher.resume();
       batcher.write(1);
       batcher.destroy();
-      clock.tick(1100);
+      clock.tick(110);
       assertNotCalled(ondata);
       assertNotCalled(encoder);
       assertNotCalled(onerror);
-      clock.tick(-1100);
+      clock.tick(-110);
     });
   });
 
@@ -283,5 +291,26 @@ describe('Batcher', function() {
         });
       });
     });
+    it('batchSize can be greater than maxBatchSize', function(callback) {
+      batcher.setBatchSize(1000);
+      batcher.resume();
+      for (var i = 1; i <= 8; ++i) {
+        batcher.write(i);
+      }
+      process.nextTick(function() {
+        assertNotCalled(ondata);
+        clock.tick(110);
+        assertCalledTwice(ondata);
+        assertCalledTwice(encoder);
+        assert(ondata.firstCall.calledWithExactly([1, 2, 3, 4]));
+        assert(encoder.firstCall.calledWithExactly([1, 2, 3, 4]));
+        assert(ondata.secondCall.calledWithExactly([5, 6, 7, 8]));
+        assert(encoder.secondCall.calledWithExactly([5, 6, 7, 8]));
+        clock.tick(-220);
+        callback();
+      });
+
+    });
+
   });
 });
